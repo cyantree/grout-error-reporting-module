@@ -9,7 +9,7 @@
         {"name": "Christoph Schreiber", "email": "mail@cyantree.com"}
     ],
     "require": {
-        "cyantree/grout-module-installer": "0.0.*",
+        "cyantree/grout-module-installer": "0.0.*"
     },
     "extra": {
         "grout-module-name": "Cyantree/ErrorReportingModule"
