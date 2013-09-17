@@ -154,7 +154,7 @@ class ErrorReportingModule extends Module
                       $this->getRouteUrl('clear-errors', null, true);
             }
 
-            $m = new Mail($this->moduleConfig->emailAllErrors, $subject, $text, null, $this->moduleConfig->emailSender);
+            $m = new Mail($this->moduleConfig->email, $subject, $text, null, $this->moduleConfig->emailSender);
             $this->app->events->trigger('mail', $m);
         }
 
