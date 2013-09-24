@@ -86,6 +86,37 @@ class ErrorReportingModule extends Module
         }
     }
 
+    public function _onError($code, $message, $file, $line, $context)
+    {
+        // Error has been suppressed with @ sign
+        if (error_reporting() === 0) {
+            return;
+        }
+
+        $se = new ScriptError($code, $message);
+        $se->file = $file;
+        $se->line = $line;
+        $se->context = $context;
+
+        if (PHP_VERSION >= '5.3.6') {
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        } else {
+            $backtrace = debug_backtrace(false);
+        }
+
+        $ic = count($backtrace);
+        for ($i = 1; $i < $ic; $i++) {
+            $im = $backtrace[$i];
+            if ($im && isset($im['line'])) {
+                $se->stackTrace .= '#' . $i . ' ' . $im['file'] . ' (' . $im['line'] . ')' . chr(10);
+            }
+        }
+
+        $se->terminate = in_array($code, array(E_WARNING, E_ERROR, E_USER_WARNING, E_USER_ERROR));
+
+        $this->processError($se);
+    }
+
     /** @param $e Exception */
     public function _onException($e)
     {
@@ -124,9 +155,18 @@ class ErrorReportingModule extends Module
 
         $data .= chr(10) . $e->stackTrace;
 
-        $sendErrorMail = $this->moduleConfig->email && !$this->_reportedErrors
-              && ($this->moduleConfig->emailAllErrors || !$this->moduleConfig->file || !file_exists($this->moduleConfig->file) || !filesize($this->moduleConfig->file));
+        $sendErrorMail = false;
+        $timestamp = 0;
 
+        if ($this->moduleConfig->email && !$this->_reportedErrors) {
+            $fileExists = file_exists($this->moduleConfig->file);
+            $timestamp = $fileExists ? filemtime($this->moduleConfig->file) : 0;
+
+            if ($this->moduleConfig->emailEverySeconds == 0 || ($this->moduleConfig->emailEverySeconds > 0 && time() - $timestamp >= $this->moduleConfig->emailEverySeconds) || filesize($this->moduleConfig->file) == 0) {
+                $sendErrorMail = true;
+                $timestamp = 0;
+            }
+        }
 
         $errorData = $data . chr(10) . '--' . chr(10) . chr(10);
 
@@ -136,23 +176,32 @@ class ErrorReportingModule extends Module
             } else {
                 file_put_contents($this->moduleConfig->file, $errorData, FILE_APPEND);
             }
+
+            if (!$sendErrorMail) {
+                touch($this->moduleConfig->file, $timestamp);
+            }
         }
 
         if ($sendErrorMail) {
             $subject = '[Error] ' . $this->app->name . ' (@' . $errorSignature . ')';
 
-            if ($this->moduleConfig->emailAllErrors) {
-                $text = 'Some errors occurred on your website:' . chr(10) .
-                      $this->getRouteUrl('get-errors', null, true) . chr(10) .
-                      $this->getRouteUrl('clear-errors', null, true) . chr(10) . chr(10) .
-                      $data;
+            $text = 'An error occurred on your website "' . $this->app->name . '":' . chr(10) .
+                  $this->getRouteUrl('get-errors', null, true) . chr(10) .
+                  $this->getRouteUrl('clear-errors', null, true) . chr(10) . chr(10);
+
+            if ($this->moduleConfig->emailEverySeconds == -1) {
+                $text .= 'You will receive the next notification after you have cleared the error log.';
+
+            } elseif ($this->moduleConfig->emailEverySeconds == 0) {
+                $text .= 'You will receive the next notification when another error occurred.';
 
             } else {
-                $text = 'Some errors occurred on your website:' . chr(10) .
-                      $this->getRouteUrl('get-errors', null, true) . chr(10) . chr(10) .
-                      'You won\'t receive any other mails until you clean up the error log:' . chr(10) .
-                      $this->getRouteUrl('clear-errors', null, true);
+                $text .= 'You will receive the next notification when an error occurred ' . $this->moduleConfig->emailEverySeconds . ' seconds after this incident.';
             }
+
+            $text .= chr(10) . chr(10) .
+                  'Last occurred error:' . chr(10) . chr(10) .
+                  $data;
 
             $m = new Mail($this->moduleConfig->email, $subject, $text, null, $this->moduleConfig->emailSender);
             $this->app->events->trigger('mail', $m);
@@ -255,22 +304,20 @@ class ErrorReportingModule extends Module
 
         set_exception_handler(array($this, '_onException'));
         register_shutdown_function(array($this, '_onShutdown'));
+        set_error_handler(array($this, '_onError'));
 
-        $this->_previousErrorReporting = error_reporting(0);
+        $this->_previousErrorReporting = error_reporting(65535); // Unused error type to distinguish with @ suppressed errors
         $this->_previousDisplayErrors = ini_set('display_errors', false);
-
-        ErrorWrapper::register();
     }
 
     public function destroy()
     {
         if (self::$_started) {
             restore_exception_handler();
+            restore_error_handler();
 
             error_reporting($this->_previousErrorReporting);
             ini_set('display_errors', $this->_previousDisplayErrors);
-
-            ErrorWrapper::unregister();
         }
     }
 

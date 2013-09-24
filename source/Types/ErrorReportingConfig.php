@@ -15,7 +15,7 @@ class ErrorReportingConfig
 
     public $emailSender = null;
 
-    public $emailAllErrors = false;
+    public $emailEverySeconds = 86400;
 
     public $accessKey = null;
 }
