@@ -21,10 +21,9 @@ class ErrorReportingModule extends Module
 
     public $suppressErrors = false;
 
-    public $errorCallback;
-    public $terminateCallback;
-
     private $_reportedErrors = false;
+    private $_errorFileTimestamp = 0;
+    private $_reportedErrorSignatures = array();
 
     private $_previousErrorReporting;
     private $_previousDisplayErrors;
@@ -34,22 +33,17 @@ class ErrorReportingModule extends Module
 
     public function init()
     {
-        $this->moduleConfig = $this->app->config->get($this->type, $this->id, new ErrorReportingConfig());
+        $this->app->configs->setDefaultConfig($this->id, new ErrorReportingConfig());
 
-        if (!$this->moduleConfig->accessKey) {
-            $this->moduleConfig->accessKey = $this->app->config->internalAccessKey;
-        }
+        $this->moduleConfig = $this->app->configs->getConfig($this->id);
+        $this->moduleConfig->file = $this->app->parseUri($this->moduleConfig->file);
 
         if ($this->moduleConfig->mode != ErrorReportingModule::MODE_AUTO) {
             $this->app->events->join('stopErrorReporting', array($this, 'onChangeErrorReporting'));
             $this->app->events->join('startErrorReporting', array($this, 'onChangeErrorReporting'));
             $this->app->events->join('emergencyShutdown', array($this, 'onEmergencyShutdown'));
 
-            $this->defaultPageType = 'ErrorReportingPage';
-
-            $this->addNamedRoute('get-errors', $this->moduleConfig->accessKey . '/get/');
-            $this->addNamedRoute('clear-errors', $this->moduleConfig->accessKey . '/clear/');
-            $this->addNamedRoute('trigger-error', $this->moduleConfig->accessKey . '/trigger/');
+            $this->addRoute('', 'Pages\ErrorReportingPage');
 
             $this->app->events->join('logException', array($this, 'onLogException'));
 
@@ -137,14 +131,19 @@ class ErrorReportingModule extends Module
         } else {
             $url = $this->app->url . '[UNKNOWN-URL]';
         }
-        $errorSignature = md5($e->type . $e->message . $e->file . $e->line . $e->stackTrace);
-        $data =
-              'URL: ' . $url . chr(10) .
-              'Date: ' . DateTime::$default->toLongDateTimeString(time(), true) . chr(10) . chr(10) .
 
-              'Signature: ' . $errorSignature . chr(10) .
-              'Type: ' . $e->type . chr(10) .
-              'Message: ' . $e->message . chr(10);
+        if (isset($this->_reportedErrorSignatures[$e->signature])) {
+            return;
+        }
+        $this->_reportedErrorSignatures[$e->signature] = true;
+
+        $data =
+            'URL: ' . $url . chr(10) .
+            'Date: ' . DateTime::$local->toLongDateTimeString(time(), true) . chr(10) . chr(10) .
+
+            'Signature: ' . $e->signature . chr(10) .
+            'Type: ' . $e->type . chr(10) .
+            'Message: ' . $e->message . chr(10);
 
         if ($e->file) {
             $data .= 'File: ' . $e->file . chr(10);
@@ -156,15 +155,34 @@ class ErrorReportingModule extends Module
         $data .= chr(10) . $e->stackTrace;
 
         $sendErrorMail = false;
-        $timestamp = 0;
+        $newErrorFileTimestamp = 0;
 
-        if ($this->moduleConfig->email && !$this->_reportedErrors) {
-            $fileExists = file_exists($this->moduleConfig->file);
-            $timestamp = $fileExists ? filemtime($this->moduleConfig->file) : 0;
+        if ($this->moduleConfig->email) {
+            if ($this->_errorFileTimestamp) {
+                $newErrorFileTimestamp = $this->_errorFileTimestamp;
 
-            if ($this->moduleConfig->emailEverySeconds == 0 || ($this->moduleConfig->emailEverySeconds > 0 && time() - $timestamp >= $this->moduleConfig->emailEverySeconds) || filesize($this->moduleConfig->file) == 0) {
+            } else {
+                if (file_exists($this->moduleConfig->file)) {
+                    $newErrorFileTimestamp = filemtime($this->moduleConfig->file);
+
+                } else {
+                    $newErrorFileTimestamp = 0;
+                }
+            }
+
+            if ($this->moduleConfig->emailEverySeconds == 0) {
                 $sendErrorMail = true;
-                $timestamp = 0;
+                $newErrorFileTimestamp = 0;
+
+            } elseif (!$this->_reportedErrors) {
+                if (filesize($this->moduleConfig->file) == 0) {
+                    $sendErrorMail = true;
+                    $newErrorFileTimestamp = 0;
+
+                } elseif ($this->moduleConfig->emailEverySeconds > 0 && (time() - $newErrorFileTimestamp) >= $this->moduleConfig->emailEverySeconds) {
+                    $sendErrorMail = true;
+                    $newErrorFileTimestamp = 0;
+                }
             }
         }
 
@@ -172,22 +190,26 @@ class ErrorReportingModule extends Module
 
         if ($this->moduleConfig->file) {
             if ($this->moduleConfig->fileMaxSize && file_exists($this->moduleConfig->file) && filesize($this->moduleConfig->file) > $this->moduleConfig->fileMaxSize) {
-                file_put_contents($this->moduleConfig->fileMaxSize, substr(file_get_contents($this->moduleConfig->file), $this->moduleConfig->fileTruncateSize) . $errorData);
+                file_put_contents($this->moduleConfig->file, substr(file_get_contents($this->moduleConfig->file), $this->moduleConfig->fileTruncateSize) . $errorData);
             } else {
                 file_put_contents($this->moduleConfig->file, $errorData, FILE_APPEND);
             }
 
-            if (!$sendErrorMail) {
-                touch($this->moduleConfig->file, $timestamp);
+            if ($newErrorFileTimestamp) {
+                $this->_errorFileTimestamp = $newErrorFileTimestamp;
+
+                touch($this->moduleConfig->file, $newErrorFileTimestamp);
+
+            } else {
+                $this->_errorFileTimestamp = time();
             }
         }
 
         if ($sendErrorMail) {
-            $subject = '[Error] ' . $this->app->name . ' (@' . $errorSignature . ')';
+            $subject = '[Error] ' . $this->app->getConfig()->projectTitle . ' (@' . $e->signature . ')';
 
-            $text = 'An error occurred on your website "' . $this->app->name . '":' . chr(10) .
-                  $this->getRouteUrl('get-errors', null, true) . chr(10) .
-                  $this->getRouteUrl('clear-errors', null, true) . chr(10) . chr(10);
+            $text = 'An error occurred on your website "' . $this->app->getConfig()->projectTitle . '":' . chr(10) .
+                $this->getUrl() . chr(10) . chr(10);
 
             if ($this->moduleConfig->emailEverySeconds == -1) {
                 $text .= 'You will receive the next notification after you have cleared the error log.';
@@ -200,8 +222,8 @@ class ErrorReportingModule extends Module
             }
 
             $text .= chr(10) . chr(10) .
-                  'Last occurred error:' . chr(10) . chr(10) .
-                  $data;
+                'Last occurred error:' . chr(10) . chr(10) .
+                $data;
 
             $m = new Mail($this->moduleConfig->email, $subject, $text, null, $this->moduleConfig->emailSender);
             $this->app->events->trigger('mail', $m);
@@ -216,13 +238,15 @@ class ErrorReportingModule extends Module
         // PHP changes working directory, so change it back
         chdir($this->app->path);
 
-        if (!$e->suppress) {
+        $e->generateSignature();
+
+        if ($e->suppress === null) {
             $e->suppress = $this->suppressErrors;
         }
 
-        if ($this->errorCallback) {
-            call_user_func($this->errorCallback, $e);
-        }
+        $this->_filterError($e);
+
+        $this->events->trigger('onError', $e);
 
         // Error should be reported
         if (!$e->suppress) {
@@ -234,9 +258,7 @@ class ErrorReportingModule extends Module
                 ob_end_clean();
             }
 
-            if ($this->terminateCallback) {
-                call_user_func($this->terminateCallback, $e);
-            }
+            $this->events->trigger('onTerminate', $e);
 
             if ($this->app->currentTask && !$this->app->currentTask->page) {
                 $this->app->currentTask->setPage(new ErrorReportingPage());
@@ -268,10 +290,9 @@ class ErrorReportingModule extends Module
     {
         $mode = $this->moduleConfig->mode;
 
-        $this->moduleConfig->file = $this->app->parseUri($this->moduleConfig->file);
-
         if ($mode === ErrorReportingModule::MODE_LOG) {
             $this->_catchErrors();
+
         } else if ($mode === ErrorReportingModule::MODE_SHOW) {
             $this->_showErrors();
         }
@@ -310,6 +331,13 @@ class ErrorReportingModule extends Module
         $this->_previousDisplayErrors = ini_set('display_errors', false);
     }
 
+    private function _filterError(ScriptError $error)
+    {
+        if ($this->moduleConfig->ignoreUploadSizeError && preg_match('/^POST Content-Length of [0-9]+ bytes exceeds the limit of [0-9]+ bytes$/', $error->message)) {
+            $error->suppress = true;
+        }
+    }
+
     public function destroy()
     {
         if (self::$_started) {
@@ -330,8 +358,8 @@ class ErrorReportingModule extends Module
         $se->file = $exception->getFile();
         $se->line = $exception->getLine();
         $se->stackTrace = $exception->getTraceAsString();
+        $se->generateSignature();
 
         $this->reportError($se);
     }
 }
-

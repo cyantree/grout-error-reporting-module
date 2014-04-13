@@ -4,44 +4,54 @@ namespace Grout\Cyantree\ErrorReportingModule\Pages;
 use Cyantree\Grout\App\Page;
 use Cyantree\Grout\App\Types\ContentType;
 use Cyantree\Grout\App\Types\ResponseCode;
-use Exception;
+use Cyantree\Grout\Tools\StringTools;
 use Grout\Cyantree\ErrorReportingModule\ErrorReportingModule;
 
 class ErrorReportingPage extends Page
 {
-    public function beforeParsing()
-    {
-        $this->task->response->contentType = ContentType::TYPE_PLAIN_UTF8;
-    }
-
     public function parseTask()
     {
 
         /** @var $m ErrorReportingModule */
         $m = $this->task->module;
 
-        if ($this->task->route->id == 'trigger-error') {
-            throw new Exception("An test error has been triggered.", E_ERROR);
-        } else if ($this->task->route->id == 'get-errors') {
-            if (!$m->moduleConfig->file || !is_file($m->moduleConfig->file) || !filesize($m->moduleConfig->file)) {
-                $c = 'No errors available';
-            } else {
-                $c = file_get_contents($m->moduleConfig->file);
-            }
+        $mode = $this->request()->get->get('mode');
+        $status = null;
 
-            $this->task->response->postContent($c);
-        } else if ($this->task->route->id == 'clear-errors') {
-            if ($m->moduleConfig->file) {
-                file_put_contents($m->moduleConfig->file, '');
-            }
+        if ($mode == 'clear') {
+            file_put_contents($m->moduleConfig->file, '');
+            $status = 'All errors have been cleared.';
 
-            $this->task->response->postContent('All errors have been cleared.');
+        } elseif ($mode == 'trigger') {
+            trigger_error('A test error has been triggered.');
+            $status = 'The test error has been triggered.';
         }
-    }
 
-    public function parseError($error, $data = null)
-    {
-        $this->task->response->postContent('An unknown error has occurred.', ContentType::TYPE_PLAIN_UTF8);
-        $this->task->response->code = ResponseCode::CODE_500;
+        $errors = is_file($m->moduleConfig->file) ? file_get_contents($m->moduleConfig->file) : '';
+
+        $errors = StringTools::escapeHtml($errors);
+
+
+        $content = <<<CNT
+<!DOCTYPE html>
+<body style="margin:0;padding:0">
+<div style="position:fixed;width:100%;background:white;padding:10px;border-bottom:solid 1px black">
+<a href=".">Show errors</a>
+<a href="?mode=clear">Clear errors</a>
+<a href="?mode=trigger">Trigger error</a>
+<br />
+<strong>
+{$status}
+</strong>
+</div>
+<div style="padding-top: 100px;">
+<pre>
+{$errors}
+</pre>
+</div>
+</body>
+CNT;
+
+        $this->task->response->postContent($content, ContentType::TYPE_HTML_UTF8);
     }
 }
