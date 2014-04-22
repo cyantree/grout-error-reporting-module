@@ -155,6 +155,7 @@ class ErrorReportingModule extends Module
         $data .= chr(10) . $e->stackTrace;
 
         $sendErrorMail = false;
+        $errorReportingEnabled = true;
         $newErrorFileTimestamp = 0;
 
         if ($this->moduleConfig->email) {
@@ -189,23 +190,45 @@ class ErrorReportingModule extends Module
         $errorData = $data . chr(10) . '--' . chr(10) . chr(10);
 
         if ($this->moduleConfig->file) {
-            if ($this->moduleConfig->fileMaxSize && file_exists($this->moduleConfig->file) && filesize($this->moduleConfig->file) > $this->moduleConfig->fileMaxSize) {
-                file_put_contents($this->moduleConfig->file, substr(file_get_contents($this->moduleConfig->file), $this->moduleConfig->fileTruncateSize) . $errorData);
-            } else {
-                file_put_contents($this->moduleConfig->file, $errorData, FILE_APPEND);
+            $f = fopen($this->moduleConfig->file, 'r+');
+
+            if (fread($f, 8) != 'disabled') {
+                $size = filesize($this->moduleConfig->file);
+
+                if ($size > $this->moduleConfig->fileMaxSize) {
+                    fseek($f, $this->moduleConfig->fileTruncateSize);
+
+                    $data = fread($f, $size - $this->moduleConfig->fileTruncateSize);
+                    ftruncate($f, 0);
+                    fseek($f, 0);
+                    fwrite($f, $data);
+
+                } else {
+                    fseek($f, $size);
+                }
+
+                fwrite($f, $errorData);
+
+            }else {
+                // Error reporting is disabled
+                $errorReportingEnabled = false;
             }
+
+            fclose($f);
 
             if ($newErrorFileTimestamp) {
                 $this->_errorFileTimestamp = $newErrorFileTimestamp;
 
-                touch($this->moduleConfig->file, $newErrorFileTimestamp);
+                if ($errorReportingEnabled) {
+                    touch($this->moduleConfig->file, $newErrorFileTimestamp);
+                }
 
             } else {
                 $this->_errorFileTimestamp = time();
             }
         }
 
-        if ($sendErrorMail) {
+        if ($errorReportingEnabled && $sendErrorMail) {
             $subject = '[Error] ' . $this->app->getConfig()->projectTitle . ' (@' . $e->signature . ')';
 
             $text = 'An error occurred on your website "' . $this->app->getConfig()->projectTitle . '":' . chr(10) .
