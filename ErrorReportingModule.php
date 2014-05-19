@@ -70,7 +70,7 @@ class ErrorReportingModule extends Module
 
         $error = error_get_last();
 
-        if ($error !== null && $error['type'] == 1) {
+        if ($error !== null && in_array($error['type'], array(E_ERROR, E_PARSE))) {
             $e = new ScriptError($error['type'], $error['message']);
             $e->file = $error['file'];
             $e->line = $error['line'];
@@ -190,7 +190,8 @@ class ErrorReportingModule extends Module
         $errorData = $data . chr(10) . '--' . chr(10) . chr(10);
 
         if ($this->moduleConfig->file) {
-            $f = fopen($this->moduleConfig->file, 'r+');
+            $f = fopen($this->moduleConfig->file, 'a+');
+            fseek($f, 0);
 
             if (fread($f, 8) != 'disabled') {
                 $size = filesize($this->moduleConfig->file);
