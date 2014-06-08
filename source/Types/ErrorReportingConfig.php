@@ -18,4 +18,6 @@ class ErrorReportingConfig
     public $emailEverySeconds = 86400;
 
     public $ignoreUploadSizeError = false;
+    public $terminateNoticeError = false;
+    public $convertErrorsToExceptions = false;
 }

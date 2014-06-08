@@ -11,7 +11,6 @@ class ErrorReportingPage extends Page
 {
     public function parseTask()
     {
-
         /** @var $m ErrorReportingModule */
         $m = $this->task->module;
 
@@ -23,7 +22,7 @@ class ErrorReportingPage extends Page
             $status = 'All errors have been cleared.';
 
         } elseif ($mode == 'trigger') {
-            trigger_error('A test error has been triggered.');
+            $this->app->events->trigger('logException', new \Exception('A test error has been triggered.'));
             $status = 'The test error has been triggered.';
 
         } elseif ($mode == 'toggle') {

@@ -87,6 +87,13 @@ class ErrorReportingModule extends Module
             return;
         }
 
+        if ($this->moduleConfig->convertErrorsToExceptions && in_array($code, array(
+                      E_ERROR, E_USER_ERROR, E_WARNING, E_USER_WARNING, E_NOTICE, E_USER_NOTICE
+                  ))) {
+            ErrorWrapper::onError($code, $message, $file, $line, $context);
+            return;
+        }
+
         $se = new ScriptError($code, $message);
         $se->file = $file;
         $se->line = $line;
@@ -107,6 +114,9 @@ class ErrorReportingModule extends Module
         }
 
         $se->terminate = in_array($code, array(E_WARNING, E_ERROR, E_USER_WARNING, E_USER_ERROR));
+        if (!$se->terminate && $this->moduleConfig->terminateNoticeError) {
+            $se->terminate = $code == E_NOTICE || $code == E_USER_NOTICE;
+        }
 
         $this->processError($se);
     }
@@ -139,7 +149,7 @@ class ErrorReportingModule extends Module
 
         $data =
             'URL: ' . $url . chr(10) .
-            'Date: ' . DateTime::$local->toLongDateTimeString(time(), true) . chr(10) . chr(10) .
+            'Date: ' . date(DateTime::ISO8601, time()) . chr(10) . chr(10) .
 
             'Signature: ' . $e->signature . chr(10) .
             'Type: ' . $e->type . chr(10) .
