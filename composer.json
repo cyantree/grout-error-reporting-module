@@ -1,21 +1,32 @@
 {
     "name": "cyantree/grout-error-reporting-module",
-    "version": "1.3",
+    "version": "1.4",
     "type": "grout-module",
     "description": "module for error reporting",
-    "keywords": ["grout", "reporting", "debugging", "errors"],
+    "keywords": [
+        "grout",
+        "reporting",
+        "debugging",
+        "errors"
+    ],
     "homepage": "https://github.com/cyantree/grout-error-reporting-module",
     "license": "LGPL-3.0",
     "authors": [
-        {"name": "Christoph Schreiber", "email": "mail@cyantree.com"}
+        {
+            "name": "Christoph Schreiber",
+            "email": "mail@cyantree.com"
+        }
     ],
     "autoload": {
         "psr-4": {
-            "Grout\\Cyantree\\ErrorReportingModule\\": ["", "source/"]
+            "Grout\\Cyantree\\ErrorReportingModule\\": [
+                "",
+                "source/"
+            ]
         }
     },
     "require": {
-        "cyantree/grout": ">=1.0,<4.0"
+        "cyantree/grout": ">=1.0,<5.0"
     },
     "extra": {
         "grout-module-name": "Cyantree/ErrorReportingModule"
