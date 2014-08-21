@@ -186,7 +186,7 @@ class ErrorReportingModule extends Module
                 $newErrorFileTimestamp = 0;
 
             } elseif (!$this->_reportedErrors) {
-                if (filesize($this->moduleConfig->file) == 0) {
+                if (!file_exists($this->moduleConfig->file) || filesize($this->moduleConfig->file) == 0) {
                     $sendErrorMail = true;
                     $newErrorFileTimestamp = 0;
 
