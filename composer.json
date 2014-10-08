@@ -1,6 +1,5 @@
 {
     "name": "cyantree/grout-error-reporting-module",
-    "version": "1.5",
     "type": "grout-module",
     "description": "module for error reporting",
     "keywords": [
@@ -26,7 +25,7 @@
         }
     },
     "require": {
-        "cyantree/grout": ">=1.0,<5.0"
+        "cyantree/grout": ">=1.0,<6.0"
     },
     "extra": {
         "grout-module-name": "Cyantree/ErrorReportingModule"
