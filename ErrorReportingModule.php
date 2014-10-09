@@ -17,16 +17,16 @@ class ErrorReportingModule extends Module
     const MODE_SHOW = 'show';
     const MODE_AUTO = 'auto';
 
-    private static $_started;
+    private static $started;
 
     public $suppressErrors = false;
 
-    private $_reportedErrors = false;
-    private $_errorFileTimestamp = 0;
-    private $_reportedErrorSignatures = array();
+    private $reportedErrors = false;
+    private $errorFileTimestamp = 0;
+    private $reportedErrorSignatures = array();
 
-    private $_previousErrorReporting;
-    private $_previousDisplayErrors;
+    private $previousErrorReporting;
+    private $previousDisplayErrors;
 
     /** @var ErrorReportingConfig */
     public $moduleConfig;
@@ -47,7 +47,7 @@ class ErrorReportingModule extends Module
 
             $this->app->events->join('logException', array($this, 'onLogException'));
 
-            $this->_startUpReporting();
+            $this->startUpReporting();
         }
     }
 
@@ -64,7 +64,7 @@ class ErrorReportingModule extends Module
 
     public function _onShutdown()
     {
-        if (!self::$_started) {
+        if (!self::$started) {
             return;
         }
 
@@ -142,10 +142,10 @@ class ErrorReportingModule extends Module
             $url = $this->app->url . '[UNKNOWN-URL]';
         }
 
-        if (isset($this->_reportedErrorSignatures[$e->signature])) {
+        if (isset($this->reportedErrorSignatures[$e->signature])) {
             return;
         }
-        $this->_reportedErrorSignatures[$e->signature] = true;
+        $this->reportedErrorSignatures[$e->signature] = true;
 
         $data =
             'URL: ' . $url . chr(10) .
@@ -169,8 +169,8 @@ class ErrorReportingModule extends Module
         $newErrorFileTimestamp = 0;
 
         if ($this->moduleConfig->email) {
-            if ($this->_errorFileTimestamp) {
-                $newErrorFileTimestamp = $this->_errorFileTimestamp;
+            if ($this->errorFileTimestamp) {
+                $newErrorFileTimestamp = $this->errorFileTimestamp;
 
             } else {
                 if (file_exists($this->moduleConfig->file)) {
@@ -185,7 +185,7 @@ class ErrorReportingModule extends Module
                 $sendErrorMail = true;
                 $newErrorFileTimestamp = 0;
 
-            } elseif (!$this->_reportedErrors) {
+            } elseif (!$this->reportedErrors) {
                 if (!file_exists($this->moduleConfig->file) || filesize($this->moduleConfig->file) == 0) {
                     $sendErrorMail = true;
                     $newErrorFileTimestamp = 0;
@@ -220,7 +220,7 @@ class ErrorReportingModule extends Module
 
                 fwrite($f, $errorData);
 
-            }else {
+            } else {
                 // Error reporting is disabled
                 $errorReportingEnabled = false;
             }
@@ -228,14 +228,14 @@ class ErrorReportingModule extends Module
             fclose($f);
 
             if ($newErrorFileTimestamp) {
-                $this->_errorFileTimestamp = $newErrorFileTimestamp;
+                $this->errorFileTimestamp = $newErrorFileTimestamp;
 
                 if ($errorReportingEnabled) {
                     touch($this->moduleConfig->file, $newErrorFileTimestamp);
                 }
 
             } else {
-                $this->_errorFileTimestamp = time();
+                $this->errorFileTimestamp = time();
             }
         }
 
@@ -263,7 +263,7 @@ class ErrorReportingModule extends Module
             $this->app->events->trigger('mail', $m);
         }
 
-        $this->_reportedErrors = true;
+        $this->reportedErrors = true;
     }
 
     /** @param $e ScriptError */
@@ -278,7 +278,7 @@ class ErrorReportingModule extends Module
             $e->suppress = $this->suppressErrors;
         }
 
-        $this->_filterError($e);
+        $this->filterError($e);
 
         $this->events->trigger('onError', $e);
 
@@ -320,31 +320,31 @@ class ErrorReportingModule extends Module
         file_put_contents($this->moduleConfig->file, '');
     }
 
-    private function _startUpReporting()
+    private function startUpReporting()
     {
         $mode = $this->moduleConfig->mode;
 
         if ($mode === ErrorReportingModule::MODE_LOG) {
-            $this->_catchErrors();
+            $this->catchErrors();
 
-        } else if ($mode === ErrorReportingModule::MODE_SHOW) {
-            $this->_showErrors();
+        } elseif ($mode === ErrorReportingModule::MODE_SHOW) {
+            $this->showErrors();
         }
     }
 
-    private function _showErrors()
+    private function showErrors()
     {
-        $this->_previousDisplayErrors = ini_set('display_errors', true);
-        $this->_previousErrorReporting = error_reporting(E_ALL);
+        $this->previousDisplayErrors = ini_set('display_errors', true);
+        $this->previousErrorReporting = error_reporting(E_ALL);
     }
 
-    private function _catchErrors()
+    private function catchErrors()
     {
-        if (self::$_started) {
+        if (self::$started) {
             return;
         }
 
-        self::$_started = true;
+        self::$started = true;
 
         // Log previous error
         $error = error_get_last();
@@ -361,11 +361,11 @@ class ErrorReportingModule extends Module
         register_shutdown_function(array($this, '_onShutdown'));
         set_error_handler(array($this, '_onError'));
 
-        $this->_previousErrorReporting = error_reporting(65535); // Unused error type to distinguish with @ suppressed errors
-        $this->_previousDisplayErrors = ini_set('display_errors', false);
+        $this->previousErrorReporting = error_reporting(65535); // Unused error type to distinguish with @ suppressed errors
+        $this->previousDisplayErrors = ini_set('display_errors', false);
     }
 
-    private function _filterError(ScriptError $error)
+    private function filterError(ScriptError $error)
     {
         if ($this->moduleConfig->ignoreUploadSizeError && preg_match('/^POST Content-Length of [0-9]+ bytes exceeds the limit of [0-9]+ bytes$/', $error->message)) {
             $error->suppress = true;
@@ -374,12 +374,12 @@ class ErrorReportingModule extends Module
 
     public function destroy()
     {
-        if (self::$_started) {
+        if (self::$started) {
             restore_exception_handler();
             restore_error_handler();
 
-            error_reporting($this->_previousErrorReporting);
-            ini_set('display_errors', $this->_previousDisplayErrors);
+            error_reporting($this->previousErrorReporting);
+            ini_set('display_errors', $this->previousDisplayErrors);
         }
     }
 
