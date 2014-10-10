@@ -62,7 +62,7 @@ class ErrorReportingModule extends Module
         $this->suppressErrors = $e->type == 'stopErrorReporting';
     }
 
-    public function _onShutdown()
+    public function onShutdown()
     {
         if (!self::$started) {
             return;
@@ -80,7 +80,7 @@ class ErrorReportingModule extends Module
         }
     }
 
-    public function _onError($code, $message, $file, $line, $context)
+    public function onError($code, $message, $file, $line, $context)
     {
         // Error has been suppressed with @ sign
         if (error_reporting() === 0) {
@@ -360,8 +360,8 @@ class ErrorReportingModule extends Module
         }
 
         set_exception_handler(array($this, '_onException'));
-        register_shutdown_function(array($this, '_onShutdown'));
-        set_error_handler(array($this, '_onError'));
+        register_shutdown_function(array($this, 'onShutdown'));
+        set_error_handler(array($this, 'onError'));
 
         $this->previousErrorReporting = error_reporting(65535); // Unused error type to distinguish with @ suppressed errors
         $this->previousDisplayErrors = ini_set('display_errors', false);
