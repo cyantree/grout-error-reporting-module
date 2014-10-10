@@ -122,7 +122,7 @@ class ErrorReportingModule extends Module
     }
 
     /** @param $e Exception */
-    public function _onException($e)
+    public function onException($e)
     {
         $se = new ScriptError($e->getCode(), $e->getMessage());
         $se->type = get_class($e);
@@ -359,7 +359,7 @@ class ErrorReportingModule extends Module
             $this->processError($e);
         }
 
-        set_exception_handler(array($this, '_onException'));
+        set_exception_handler(array($this, 'onException'));
         register_shutdown_function(array($this, 'onShutdown'));
         set_error_handler(array($this, 'onError'));
 
