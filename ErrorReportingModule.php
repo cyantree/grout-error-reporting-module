@@ -190,7 +190,9 @@ class ErrorReportingModule extends Module
                     $sendErrorMail = true;
                     $newErrorFileTimestamp = 0;
 
-                } elseif ($this->moduleConfig->emailEverySeconds > 0 && (time() - $newErrorFileTimestamp) >= $this->moduleConfig->emailEverySeconds) {
+                } elseif ($this->moduleConfig->emailEverySeconds > 0
+                    && (time() - $newErrorFileTimestamp) >= $this->moduleConfig->emailEverySeconds
+                ) {
                     $sendErrorMail = true;
                     $newErrorFileTimestamp = 0;
                 }
@@ -367,7 +369,9 @@ class ErrorReportingModule extends Module
 
     private function filterError(ScriptError $error)
     {
-        if ($this->moduleConfig->ignoreUploadSizeError && preg_match('/^POST Content-Length of [0-9]+ bytes exceeds the limit of [0-9]+ bytes$/', $error->message)) {
+        if ($this->moduleConfig->ignoreUploadSizeError
+            && preg_match('/^POST Content-Length of [0-9]+ bytes exceeds the limit of [0-9]+ bytes$/', $error->message)
+        ) {
             $error->suppress = true;
         }
     }
