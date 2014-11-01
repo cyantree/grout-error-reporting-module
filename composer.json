@@ -18,10 +18,7 @@
     ],
     "autoload": {
         "psr-4": {
-            "Grout\\Cyantree\\ErrorReportingModule\\": [
-                "",
-                "source/"
-            ]
+            "Grout\\Cyantree\\ErrorReportingModule\\": ""
         }
     },
     "require": {
