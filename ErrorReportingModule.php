@@ -87,9 +87,7 @@ class ErrorReportingModule extends Module
             return;
         }
 
-        if ($this->moduleConfig->convertErrorsToExceptions && in_array($code, array(
-                      E_ERROR, E_USER_ERROR, E_WARNING, E_USER_WARNING, E_NOTICE, E_USER_NOTICE
-                  ))) {
+        if ($this->moduleConfig->convertErrorsToExceptions) {
             ErrorWrapper::onError($code, $message, $file, $line, $context);
             return;
         }
@@ -115,7 +113,14 @@ class ErrorReportingModule extends Module
 
         $se->terminate = in_array($code, array(E_WARNING, E_ERROR, E_USER_WARNING, E_USER_ERROR));
         if (!$se->terminate && $this->moduleConfig->terminateNoticeError) {
-            $se->terminate = $code == E_NOTICE || $code == E_USER_NOTICE;
+            $se->terminate = $code & E_NOTICE || $code & E_USER_NOTICE;
+        }
+        if (!$se->terminate && $this->moduleConfig->terminateStrictError) {
+            $se->terminate = $code & E_STRICT;
+        }
+
+        if (!$se->terminate && $this->moduleConfig->terminateDeprecationError) {
+            $se->terminate = $code & E_DEPRECATED || $code & E_USER_DEPRECATED;
         }
 
         $this->processError($se);

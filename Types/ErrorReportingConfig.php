@@ -19,5 +19,7 @@ class ErrorReportingConfig
 
     public $ignoreUploadSizeError = false;
     public $terminateNoticeError = false;
+    public $terminateStrictError = false;
+    public $terminateDeprecationError = false;
     public $convertErrorsToExceptions = false;
 }
