@@ -70,14 +70,31 @@ class ErrorReportingModule extends Module
 
         $error = error_get_last();
 
-        if ($error !== null && in_array($error['type'], array(E_ERROR, E_PARSE))) {
-            $e = new ScriptError($error['type'], $error['message']);
-            $e->file = $error['file'];
-            $e->line = $error['line'];
-            $e->terminate = true;
-
-            $this->processError($e);
+        if ($error === null) {
+            return;
         }
+
+        $se = new ScriptError($error['type'], $error['message']);
+        $se->file = $error['file'];
+        $se->line = $error['line'];
+        $se->terminate = true;
+
+        if (PHP_VERSION >= '5.3.6') {
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+
+        } else {
+            $backtrace = debug_backtrace(false);
+        }
+
+        $ic = count($backtrace);
+        for ($i = 1; $i < $ic; $i++) {
+            $im = $backtrace[$i];
+            if ($im && isset($im['line'])) {
+                $se->stackTrace .= '#' . $i . ' ' . $im['file'] . ' (' . $im['line'] . ')' . chr(10);
+            }
+        }
+
+        $this->processError($se);
     }
 
     public function onError($code, $message, $file, $line, $context)
@@ -111,7 +128,7 @@ class ErrorReportingModule extends Module
             }
         }
 
-        $se->terminate = in_array($code, array(E_WARNING, E_ERROR, E_USER_WARNING, E_USER_ERROR));
+        $se->terminate = in_array($code, array(E_WARNING, E_ERROR, E_USER_WARNING, E_USER_ERROR, E_COMPILE_ERROR, E_COMPILE_WARNING));
         if (!$se->terminate && $this->moduleConfig->terminateNoticeError) {
             $se->terminate = $code & E_NOTICE || $code & E_USER_NOTICE;
         }
