@@ -17,6 +17,8 @@ class ErrorReportingConfig
 
     public $emailEverySeconds = 86400;
 
+    public $includeIp = true;
+    public $includeUserAgent = true;
     public $ignoreUploadSizeError = false;
     public $terminateNoticeError = false;
     public $terminateStrictError = false;
