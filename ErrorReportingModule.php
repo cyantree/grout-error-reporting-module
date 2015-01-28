@@ -184,12 +184,14 @@ class ErrorReportingModule extends Module
             $data .= 'Line: ' . $e->line . chr(10);
         }
 
-        if ($this->moduleConfig->includeIp) {
-            $data .= 'IP: ' . $this->app->currentTask->request->server->get('REMOTE_ADDR') . chr(10);
-        }
+        if ($this->app->currentTask) {
+            if ($this->moduleConfig->includeIp) {
+                $data .= 'IP: ' . $this->app->currentTask->request->server->get('REMOTE_ADDR') . chr(10);
+            }
 
-        if ($this->moduleConfig->includeUserAgent) {
-            $data .= 'User-Agent: ' . $this->app->currentTask->request->server->asString('HTTP_USER_AGENT')->asInput(255)->value . chr(10);
+            if ($this->moduleConfig->includeUserAgent) {
+                $data .= 'User-Agent: ' . $this->app->currentTask->request->server->asString('HTTP_USER_AGENT')->asInput(255)->value . chr(10);
+            }
         }
 
         $data .= chr(10) . $e->stackTrace;
