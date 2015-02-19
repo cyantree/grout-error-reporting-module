@@ -146,8 +146,8 @@ class ErrorReportingModule extends Module
     /** @param $e Exception */
     public function onException($e)
     {
-        $se = new ScriptError($e->getCode(), $e->getMessage());
-        $se->type = get_class($e);
+        $se = new ScriptError(get_class($e), $e->getMessage());
+        $se->code = $e->getCode();
         $se->file = $e->getFile();
         $se->line = $e->getLine();
         $se->stackTrace = $e->getTraceAsString();
@@ -175,6 +175,7 @@ class ErrorReportingModule extends Module
 
             'Signature: ' . $e->signature . chr(10) .
             'Type: ' . $e->type . chr(10) .
+            ($e->code ? ('Code: ' . $e->code . chr(10)) : '') .
             'Message: ' . $e->message . chr(10);
 
         if ($e->file) {
